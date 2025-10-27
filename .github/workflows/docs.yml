@@ -34,6 +34,11 @@ jobs:
           hugo-version: '0.120.0'
           extended: true
 
+      - name: Install Hugo theme
+        run: |
+          cd docs
+          git clone https://github.com/alex-shpak/hugo-book themes/book
+
       - name: Build
         run: |
           cd docs
