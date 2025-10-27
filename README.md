@@ -581,6 +581,7 @@ Created and maintained by **Rauche Acho** - [GitHub](https://github.com/raucheac
 Full documentation is available at: **[https://raucheacho.github.io/lanup/](https://raucheacho.github.io/lanup/)**
 
 Or build locally:
+
 ```bash
 cd docs
 ./setup.sh
