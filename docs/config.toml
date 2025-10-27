@@ -1,4 +1,4 @@
-baseURL = "https://raucheacho.github.io/lanup/"
+baseURL = "https://lanup.raucheacho.com/"
 languageCode = "en-us"
 title = "lanup - Local Network Service Exposure"
 theme = "book"
