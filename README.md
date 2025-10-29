@@ -24,12 +24,6 @@ brew tap raucheacho/tap
 brew install lanup
 ```
 
-### npm (All platforms)
-
-```bash
-npm install -g lanup
-```
-
 ### Scoop (Windows)
 
 ```powershell
@@ -37,40 +31,22 @@ scoop bucket add raucheacho https://github.com/raucheacho/scoop-bucket
 scoop install lanup
 ```
 
-### Go Install
+### Build from Source
 
 If you have Go 1.22+ installed:
 
 ```bash
+git clone https://github.com/raucheacho/lanup.git
+cd lanup
+go build -o lanup .
+sudo mv lanup /usr/local/bin/  # or add to your PATH
+```
+
+Or install directly with Go:
+
+```bash
 go install github.com/raucheacho/lanup@latest
 ```
-
-### Pre-built Binaries
-
-Download from the [releases page](https://github.com/raucheacho/lanup/releases).
-
-#### macOS
-
-```bash
-# Intel Mac
-curl -L https://github.com/raucheacho/lanup/releases/latest/download/lanup_Darwin_x86_64.tar.gz | tar xz
-sudo mv lanup /usr/local/bin/
-
-# Apple Silicon (M1/M2)
-curl -L https://github.com/raucheacho/lanup/releases/latest/download/lanup_Darwin_arm64.tar.gz | tar xz
-sudo mv lanup /usr/local/bin/
-```
-
-#### Linux
-
-```bash
-curl -L https://github.com/raucheacho/lanup/releases/latest/download/lanup_Linux_x86_64.tar.gz | tar xz
-sudo mv lanup /usr/local/bin/
-```
-
-#### Windows
-
-Download `lanup_Windows_x86_64.zip` from the releases page and add it to your PATH.
 
 ## Quick Start
 

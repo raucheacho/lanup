@@ -12,15 +12,27 @@ weight: 1
 
 ## Installation Methods
 
-### From Source (Go Install)
+### Homebrew (macOS/Linux)
 
-If you have Go 1.22+ installed:
+The recommended way to install lanup on macOS and Linux:
 
 ```bash
-go install github.com/raucheacho/lanup@latest
+brew tap raucheacho/tap
+brew install lanup
+```
+
+### Scoop (Windows)
+
+The recommended way to install lanup on Windows:
+
+```powershell
+scoop bucket add raucheacho https://github.com/raucheacho/scoop-bucket
+scoop install lanup
 ```
 
 ### Build from Source
+
+If you have Go 1.22+ installed:
 
 ```bash
 # Clone the repository
@@ -34,37 +46,11 @@ make build
 make install
 ```
 
-### Pre-built Binaries
-
-Download pre-built binaries from the [releases page](https://github.com/raucheacho/lanup/releases).
-
-#### macOS
-
-**Intel Mac:**
-```bash
-curl -L https://github.com/raucheacho/lanup/releases/latest/download/lanup-darwin-amd64 -o lanup
-chmod +x lanup
-sudo mv lanup /usr/local/bin/
-```
-
-**Apple Silicon (M1/M2):**
-```bash
-curl -L https://github.com/raucheacho/lanup/releases/latest/download/lanup-darwin-arm64 -o lanup
-chmod +x lanup
-sudo mv lanup /usr/local/bin/
-```
-
-#### Linux
+Or install directly with Go:
 
 ```bash
-curl -L https://github.com/raucheacho/lanup/releases/latest/download/lanup-linux-amd64 -o lanup
-chmod +x lanup
-sudo mv lanup /usr/local/bin/
+go install github.com/raucheacho/lanup@latest
 ```
-
-#### Windows
-
-Download `lanup-windows-amd64.exe` from the releases page and add it to your PATH.
 
 ## Verify Installation
 
