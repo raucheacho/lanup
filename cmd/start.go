@@ -247,6 +247,57 @@ func (c *StartCmd) watchMode(projectConfig *config.ProjectConfig) error {
 		interval = time.Duration(globalCfg.CheckInterval) * time.Second
 	}
 
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start file watcher for .lanup.yaml
+	go func() {
+		configPath := ".lanup.yaml"
+		stat, err := os.Stat(configPath)
+		if err != nil {
+			return
+		}
+		lastModTime := stat.ModTime()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				stat, err := os.Stat(configPath)
+				if err != nil {
+					continue
+				}
+				if stat.ModTime().After(lastModTime) {
+					lastModTime = stat.ModTime()
+
+					fmt.Println()
+					utils.Warning("Configuration file changed: %s", configPath)
+					utils.Info("Reloading configuration and regenerating environment file...")
+
+					// Reload project config
+					newConfig, err := config.LoadProjectConfig(configPath)
+					if err != nil {
+						utils.Error("Failed to reload configuration: %v", err)
+						continue
+					}
+
+					// Update config and regenerate
+					projectConfig = newConfig
+					if err := c.executeStart(projectConfig); err != nil {
+						utils.Error("Failed to regenerate env file: %v", err)
+					} else {
+						utils.Success("Environment file updated successfully!")
+						fmt.Println()
+					}
+				}
+			}
+		}
+	}()
+
 	// Create IP watcher
 	watcher := net.NewIPWatcher(interval)
 
@@ -267,10 +318,6 @@ func (c *StartCmd) watchMode(projectConfig *config.ProjectConfig) error {
 			fmt.Println()
 		}
 	}
-
-	// Create context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
