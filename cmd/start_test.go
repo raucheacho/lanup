@@ -43,10 +43,9 @@ func TestStartCmd_Run_Success(t *testing.T) {
 
 	// Create start command
 	startCmd := &StartCmd{
-		Watch:  false,
+		Once:   true,
 		NoEnv:  false,
 		DryRun: false,
-		Log:    false,
 	}
 
 	// Run start command
@@ -115,10 +114,9 @@ SECRET_KEY=my-secret
 
 	// Create start command
 	startCmd := &StartCmd{
-		Watch:  false,
+		Once:   true,
 		NoEnv:  false,
 		DryRun: false,
-		Log:    false,
 	}
 
 	// Run start command
@@ -180,10 +178,9 @@ func TestStartCmd_Run_DryRun(t *testing.T) {
 
 	// Create start command with dry-run
 	startCmd := &StartCmd{
-		Watch:  false,
+		Once:   true,
 		NoEnv:  false,
 		DryRun: true,
-		Log:    false,
 	}
 
 	// Run start command
@@ -226,10 +223,9 @@ func TestStartCmd_Run_NoEnv(t *testing.T) {
 
 	// Create start command with no-env
 	startCmd := &StartCmd{
-		Watch:  false,
+		Once:   true,
 		NoEnv:  true,
 		DryRun: false,
-		Log:    false,
 	}
 
 	// Run start command
@@ -256,10 +252,9 @@ func TestStartCmd_Run_MissingConfig(t *testing.T) {
 
 	// Create start command (no config file exists)
 	startCmd := &StartCmd{
-		Watch:  false,
+		Once:   true,
 		NoEnv:  false,
 		DryRun: false,
-		Log:    false,
 	}
 
 	// Run start command
@@ -314,10 +309,9 @@ CUSTOM_VAR=custom-value
 
 	// Create start command
 	startCmd := &StartCmd{
-		Watch:  false,
+		Once:   true,
 		NoEnv:  false,
 		DryRun: false,
-		Log:    false,
 	}
 
 	// Run start command
@@ -383,7 +377,7 @@ func TestTransformURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := transformURL(tt.url, tt.newIP)
+			result := TransformURL(tt.url, tt.newIP)
 
 			// Verify localhost was replaced
 			assert.NotContains(t, result, "localhost")

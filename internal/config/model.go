@@ -11,7 +11,6 @@ import (
 type GlobalConfig struct {
 	LogPath       string `yaml:"log_path"`
 	LogLevel      string `yaml:"log_level"`
-	DefaultPort   int    `yaml:"default_port"`
 	CheckInterval int    `yaml:"check_interval"` // seconds for the watcher
 }
 
@@ -51,10 +50,6 @@ func (c *GlobalConfig) Validate() error {
 	}
 	if !validLogLevels[strings.ToLower(c.LogLevel)] {
 		return fmt.Errorf("invalid log_level: %s (must be debug, info, warn, or error)", c.LogLevel)
-	}
-
-	if c.DefaultPort < 1 || c.DefaultPort > 65535 {
-		return fmt.Errorf("default_port must be between 1 and 65535, got %d", c.DefaultPort)
 	}
 
 	if c.CheckInterval < 1 {

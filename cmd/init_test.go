@@ -24,8 +24,7 @@ func TestInitCmd_Run_Success(t *testing.T) {
 
 	// Create and run init command
 	initCmd := &InitCmd{
-		Format: "yaml",
-		Force:  false,
+		Force: false,
 	}
 
 	err = initCmd.Run()
@@ -71,8 +70,7 @@ func TestInitCmd_Run_FileExists_NoForce(t *testing.T) {
 
 	// Create and run init command without force
 	initCmd := &InitCmd{
-		Format: "yaml",
-		Force:  false,
+		Force: false,
 	}
 
 	err = initCmd.Run()
@@ -105,8 +103,7 @@ func TestInitCmd_Run_FileExists_WithForce(t *testing.T) {
 
 	// Create and run init command with force
 	initCmd := &InitCmd{
-		Format: "yaml",
-		Force:  true,
+		Force: true,
 	}
 
 	err = initCmd.Run()
@@ -120,50 +117,4 @@ func TestInitCmd_Run_FileExists_WithForce(t *testing.T) {
 	assert.Equal(t, ".env.local", loadedConfig.Output)
 	assert.True(t, loadedConfig.AutoDetect.Docker)
 	assert.True(t, loadedConfig.AutoDetect.Supabase)
-}
-
-func TestInitCmd_Run_InvalidFormat(t *testing.T) {
-	// Create temporary directory for test
-	tmpDir := t.TempDir()
-
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(originalWd)
-
-	err = os.Chdir(tmpDir)
-	require.NoError(t, err)
-
-	// Create init command with invalid format
-	initCmd := &InitCmd{
-		Format: "json",
-		Force:  false,
-	}
-
-	err = initCmd.Run()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Unsupported format")
-}
-
-func TestInitCmd_Run_TOMLNotSupported(t *testing.T) {
-	// Create temporary directory for test
-	tmpDir := t.TempDir()
-
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	require.NoError(t, err)
-	defer os.Chdir(originalWd)
-
-	err = os.Chdir(tmpDir)
-	require.NoError(t, err)
-
-	// Create init command with TOML format
-	initCmd := &InitCmd{
-		Format: "toml",
-		Force:  false,
-	}
-
-	err = initCmd.Run()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "TOML format is not yet supported")
 }

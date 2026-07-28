@@ -102,7 +102,6 @@ func GetDefaultGlobalConfig() *GlobalConfig {
 	return &GlobalConfig{
 		LogPath:       logPath,
 		LogLevel:      "info",
-		DefaultPort:   8080,
 		CheckInterval: 5,
 	}
 }

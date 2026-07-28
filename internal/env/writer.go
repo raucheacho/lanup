@@ -30,7 +30,13 @@ func NewEnvWriter(path string) *EnvWriter {
 	}
 }
 
-// Read parses an existing .env file and returns the variables
+// isEnvRC returns true if the output file uses shell export syntax (.envrc)
+func (w *EnvWriter) isEnvRC() bool {
+	base := filepath.Base(w.FilePath)
+	return base == ".envrc" || strings.HasSuffix(base, ".envrc")
+}
+
+// Read parses an existing .env or .envrc file and returns the variables
 func (w *EnvWriter) Read() ([]EnvVar, error) {
 	file, err := os.Open(w.FilePath)
 	if err != nil {
@@ -61,8 +67,14 @@ func (w *EnvWriter) Read() ([]EnvVar, error) {
 			continue
 		}
 
+		// Strip "export " prefix for .envrc files
+		parseLine := line
+		if strings.HasPrefix(parseLine, "export ") {
+			parseLine = strings.TrimPrefix(parseLine, "export ")
+		}
+
 		// Parse KEY=VALUE
-		parts := strings.SplitN(line, "=", 2)
+		parts := strings.SplitN(parseLine, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
@@ -140,6 +152,14 @@ func (w *EnvWriter) Merge(newVars []EnvVar, existing []EnvVar) []EnvVar {
 	return result
 }
 
+// formatVar formats a single variable line based on the output file type
+func (w *EnvWriter) formatVar(key, value string) string {
+	if w.isEnvRC() {
+		return fmt.Sprintf("export %s=%s\n", key, value)
+	}
+	return fmt.Sprintf("%s=%s\n", key, value)
+}
+
 // Write writes the environment variables to the file with proper formatting
 func (w *EnvWriter) Write(vars []EnvVar) error {
 	// Create backup if enabled
@@ -188,7 +208,7 @@ func (w *EnvWriter) Write(vars []EnvVar) error {
 		if _, err := writer.WriteString("# lanup:managed\n"); err != nil {
 			return fmt.Errorf("failed to write managed marker: %w", err)
 		}
-		if _, err := writer.WriteString(fmt.Sprintf("%s=%s\n", v.Key, v.Value)); err != nil {
+		if _, err := writer.WriteString(w.formatVar(v.Key, v.Value)); err != nil {
 			return fmt.Errorf("failed to write variable: %w", err)
 		}
 	}
@@ -201,7 +221,7 @@ func (w *EnvWriter) Write(vars []EnvVar) error {
 
 		// Write user variables
 		for _, v := range userVars {
-			if _, err := writer.WriteString(fmt.Sprintf("%s=%s\n", v.Key, v.Value)); err != nil {
+			if _, err := writer.WriteString(w.formatVar(v.Key, v.Value)); err != nil {
 				return fmt.Errorf("failed to write variable: %w", err)
 			}
 		}
@@ -213,15 +233,4 @@ func (w *EnvWriter) Write(vars []EnvVar) error {
 	}
 
 	return nil
-}
-
-// transformURL replaces localhost or 127.0.0.1 with the detected IP address
-func transformURL(url string, newIP string) string {
-	// Replace localhost
-	url = strings.ReplaceAll(url, "localhost", newIP)
-
-	// Replace 127.0.0.1
-	url = strings.ReplaceAll(url, "127.0.0.1", newIP)
-
-	return url
 }

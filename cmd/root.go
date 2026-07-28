@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/raucheacho/lanup/internal/config"
@@ -11,7 +10,6 @@ import (
 
 var (
 	// Global flags
-	cfgFile string
 	verbose bool
 
 	// Global configuration loaded at startup
@@ -36,7 +34,7 @@ your applications from any device on the same network without manual configurati
 }
 
 // Execute runs the root command
-func Execute() error {
+func Execute() {
 	err := RootCmd.Execute()
 	if err != nil {
 		// If it's a LanupError, exit with the appropriate code
@@ -46,12 +44,10 @@ func Execute() error {
 		// Otherwise, exit with generic error code
 		os.Exit(1)
 	}
-	return nil
 }
 
 func init() {
 	// Add persistent flags available to all commands
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.lanup/config.yaml)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
 }
 
@@ -70,18 +66,15 @@ func initConfig() error {
 		globalConfig.LogLevel = "debug"
 	}
 
-	// If a custom config file is specified, we could load it here
-	// For now, we always use the default ~/.lanup/config.yaml
-	if cfgFile != "" {
-		if verbose {
-			fmt.Fprintf(os.Stderr, "Note: Custom config file path is not yet supported, using default\n")
-		}
-	}
-
 	return nil
 }
 
 // GetGlobalConfig returns the loaded global configuration
 func GetGlobalConfig() *config.GlobalConfig {
 	return globalConfig
+}
+
+// IsVerbose returns whether verbose mode is enabled
+func IsVerbose() bool {
+	return verbose
 }

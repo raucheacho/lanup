@@ -14,7 +14,6 @@ import (
 // ExposeCmd represents the expose command
 type ExposeCmd struct {
 	URL   string
-	Name  string
 	Port  int
 	HTTPS bool
 }
@@ -33,7 +32,6 @@ from any device on your network.
 
 Examples:
   lanup expose http://localhost:3000
-  lanup expose http://localhost:8080 --name api
   lanup expose http://localhost:5000 --port 8000
   lanup expose http://localhost:3000 --https`,
 		Args: cobra.ExactArgs(1),
@@ -44,7 +42,6 @@ Examples:
 	}
 
 	// Add flags
-	cmd.Flags().StringVar(&exposeCmd.Name, "name", "", "assign an alias to the exposed service")
 	cmd.Flags().IntVar(&exposeCmd.Port, "port", 0, "use a custom port instead of the original")
 	cmd.Flags().BoolVar(&exposeCmd.HTTPS, "https", false, "use HTTPS protocol instead of HTTP")
 
@@ -147,14 +144,9 @@ func (c *ExposeCmd) displayResult(localIP, transformedURL string) {
 	green := color.New(color.FgGreen).SprintFunc()
 	cyan := color.New(color.FgCyan).SprintFunc()
 	yellow := color.New(color.FgYellow).SprintFunc()
-	bold := color.New(color.Bold).SprintFunc()
 
 	fmt.Printf("%s %s\n", green("✓"), "Successfully exposed service on your LAN!")
 	fmt.Printf("%s %s\n\n", green("✓"), "Local IP: "+cyan(localIP))
-
-	if c.Name != "" {
-		fmt.Printf("%s %s\n", yellow("📌"), "Service name: "+bold(c.Name))
-	}
 
 	fmt.Printf("%s %s\n", yellow("🌐"), "Original URL:")
 	fmt.Printf("  %s\n\n", c.URL)

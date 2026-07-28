@@ -13,8 +13,7 @@ import (
 
 // InitCmd represents the init command
 type InitCmd struct {
-	Format string
-	Force  bool
+	Force bool
 }
 
 // NewInitCmd creates a new init command
@@ -34,7 +33,6 @@ You can customize the variables, output file path, and auto-detection settings.`
 	}
 
 	// Add flags
-	cmd.Flags().StringVar(&initCmd.Format, "format", "yaml", "configuration file format (yaml or toml)")
 	cmd.Flags().BoolVar(&initCmd.Force, "force", false, "overwrite existing configuration file")
 
 	return cmd
@@ -46,18 +44,6 @@ func init() {
 
 // Run executes the init command
 func (c *InitCmd) Run() error {
-	// Validate format
-	if c.Format != "yaml" && c.Format != "toml" {
-		return lanuperrors.NewError(lanuperrors.ErrInvalidConfig,
-			fmt.Sprintf("Unsupported format: %s (supported: yaml, toml)", c.Format), nil)
-	}
-
-	// Note: Currently only YAML is implemented
-	if c.Format == "toml" {
-		return lanuperrors.NewError(lanuperrors.ErrInvalidConfig,
-			"TOML format is not yet supported, please use yaml", nil)
-	}
-
 	// Determine config file path
 	configPath := ".lanup.yaml"
 

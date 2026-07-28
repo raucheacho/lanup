@@ -13,7 +13,6 @@ import (
 	"github.com/raucheacho/lanup/internal/config"
 	"github.com/raucheacho/lanup/internal/docker"
 	"github.com/raucheacho/lanup/internal/env"
-	"github.com/raucheacho/lanup/internal/logger"
 	"github.com/raucheacho/lanup/internal/net"
 	lanuperrors "github.com/raucheacho/lanup/pkg/errors"
 	"github.com/raucheacho/lanup/pkg/utils"
@@ -22,11 +21,9 @@ import (
 
 // StartCmd represents the start command
 type StartCmd struct {
-	Watch  bool
+	Once   bool
 	NoEnv  bool
 	DryRun bool
-	Log    bool
-	logger *logger.Logger
 }
 
 // NewStartCmd creates a new start command
@@ -46,10 +43,9 @@ and generates a .env file with URLs that can be accessed from any device on your
 	}
 
 	// Add flags
-	cmd.Flags().BoolVarP(&startCmd.Watch, "watch", "w", false, "watch for network changes and update automatically")
+	cmd.Flags().BoolVarP(&startCmd.Once, "once", "1", false, "run once and exit without watching for network changes")
 	cmd.Flags().BoolVar(&startCmd.NoEnv, "no-env", false, "display variables without writing to file")
 	cmd.Flags().BoolVar(&startCmd.DryRun, "dry-run", false, "simulate all operations without writing files")
-	cmd.Flags().BoolVar(&startCmd.Log, "log", true, "enable logging to file")
 
 	return cmd
 }
@@ -60,37 +56,6 @@ func init() {
 
 // Run executes the start command
 func (c *StartCmd) Run() error {
-	// Initialize logger if enabled
-	if c.Log {
-		globalCfg := GetGlobalConfig()
-		if globalCfg != nil {
-			logLevel := logger.INFO
-			switch strings.ToLower(globalCfg.LogLevel) {
-			case "debug":
-				logLevel = logger.DEBUG
-			case "warn":
-				logLevel = logger.WARN
-			case "error":
-				logLevel = logger.ERROR
-			}
-
-			var err error
-			c.logger, err = logger.NewLogger(logger.LoggerConfig{
-				Level:      logLevel,
-				FilePath:   globalCfg.LogPath,
-				MaxSize:    5 * 1024 * 1024, // 5MB
-				MaxBackups: 5,
-				Console:    false,
-				Colors:     false,
-			})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Failed to initialize logger: %v\n", err)
-			} else {
-				defer c.logger.Close()
-			}
-		}
-	}
-
 	// Load project configuration
 	projectConfig, err := config.LoadProjectConfig("")
 	if err != nil {
@@ -98,20 +63,17 @@ func (c *StartCmd) Run() error {
 			"Failed to load project configuration", err)
 	}
 
-	if c.logger != nil {
-		c.logger.Info("Starting lanup", logger.Field{Key: "watch", Value: c.Watch})
+	if IsVerbose() {
+		fmt.Fprintf(os.Stderr, "[verbose] Starting lanup (once=%v)\n", c.Once)
 	}
 
 	// Execute the core start logic
 	if err := c.executeStart(projectConfig); err != nil {
-		if c.logger != nil {
-			c.logger.Error("Start failed", logger.Field{Key: "error", Value: err.Error()})
-		}
 		return err
 	}
 
-	// If watch mode is enabled, start watching for network changes
-	if c.Watch {
+	// If not in once mode, start watching for network changes
+	if !c.Once {
 		return c.watchMode(projectConfig)
 	}
 
@@ -127,11 +89,8 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 			"Failed to detect local IP address", err)
 	}
 
-	if c.logger != nil {
-		c.logger.Info("Detected IP",
-			logger.Field{Key: "ip", Value: netInfo.IP},
-			logger.Field{Key: "interface", Value: netInfo.Interface},
-			logger.Field{Key: "type", Value: netInfo.Type})
+	if IsVerbose() {
+		fmt.Fprintf(os.Stderr, "[verbose] Detected IP: %s on %s (%s)\n", netInfo.IP, netInfo.Interface, netInfo.Type)
 	}
 
 	// Collect variables from configuration
@@ -145,13 +104,10 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 		if docker.IsDockerAvailable() {
 			containers, err := docker.GetRunningContainers()
 			if err != nil {
-				if c.logger != nil {
-					c.logger.Warn("Failed to get Docker containers", logger.Field{Key: "error", Value: err.Error()})
-				}
 				fmt.Fprintf(os.Stderr, "⚠️  Warning: Failed to detect Docker containers: %v\n", err)
 			} else {
-				if c.logger != nil {
-					c.logger.Info("Detected Docker containers", logger.Field{Key: "count", Value: len(containers)})
+				if IsVerbose() {
+					fmt.Fprintf(os.Stderr, "[verbose] Detected %d Docker container(s)\n", len(containers))
 				}
 				// Add Docker container ports to variables
 				for _, container := range containers {
@@ -168,13 +124,12 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 	if projectConfig.AutoDetect.Supabase {
 		services, err := docker.GetSupabaseStatus()
 		if err != nil {
-			if c.logger != nil {
-				c.logger.Warn("Failed to get Supabase status", logger.Field{Key: "error", Value: err.Error()})
+			if IsVerbose() {
+				fmt.Fprintf(os.Stderr, "[verbose] Supabase not available: %v\n", err)
 			}
-			// Don't show warning for Supabase as it's optional
 		} else {
-			if c.logger != nil {
-				c.logger.Info("Detected Supabase services", logger.Field{Key: "count", Value: len(services)})
+			if IsVerbose() {
+				fmt.Fprintf(os.Stderr, "[verbose] Detected %d Supabase service(s)\n", len(services))
 			}
 			// Add Supabase service ports to variables
 			for serviceName, port := range services {
@@ -187,7 +142,7 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 	// Transform URLs from localhost to detected IP
 	transformedVars := make([]env.EnvVar, 0, len(vars))
 	for key, value := range vars {
-		transformedValue := transformURL(value, netInfo.IP)
+		transformedValue := TransformURL(value, netInfo.IP)
 		transformedVars = append(transformedVars, env.EnvVar{
 			Key:     key,
 			Value:   transformedValue,
@@ -218,10 +173,8 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 			"Failed to write env file", err)
 	}
 
-	if c.logger != nil {
-		c.logger.Info("Updated env file",
-			logger.Field{Key: "path", Value: projectConfig.Output},
-			logger.Field{Key: "vars", Value: len(transformedVars)})
+	if IsVerbose() {
+		fmt.Fprintf(os.Stderr, "[verbose] Updated %s with %d variable(s)\n", projectConfig.Output, len(transformedVars))
 	}
 
 	// Display success message and URLs
@@ -230,8 +183,8 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 	return nil
 }
 
-// transformURL replaces localhost or 127.0.0.1 with the detected IP address
-func transformURL(url string, newIP string) string {
+// TransformURL replaces localhost or 127.0.0.1 with the detected IP address
+func TransformURL(url string, newIP string) string {
 	// Replace localhost
 	url = strings.ReplaceAll(url, "localhost", newIP)
 
@@ -277,7 +230,7 @@ func (c *StartCmd) displaySuccess(vars []env.EnvVar, ip string, outputPath strin
 		fmt.Println()
 	}
 
-	utils.Info("Tip: Use 'lanup start --watch' to automatically update when your network changes")
+	utils.Info("Tip: Use 'lanup start --once' to run once and exit")
 }
 
 // watchMode starts watching for network changes and regenerates the .env file
@@ -299,12 +252,6 @@ func (c *StartCmd) watchMode(projectConfig *config.ProjectConfig) error {
 
 	// Set up the OnChange callback
 	watcher.OnChange = func(oldIP, newIP string) {
-		if c.logger != nil {
-			c.logger.Warn("Network interface changed",
-				logger.Field{Key: "old_ip", Value: oldIP},
-				logger.Field{Key: "new_ip", Value: newIP})
-		}
-
 		fmt.Println()
 		utils.Warning("Network change detected!")
 		fmt.Printf("  Old IP: %s\n", color.CyanString(oldIP))
@@ -315,9 +262,6 @@ func (c *StartCmd) watchMode(projectConfig *config.ProjectConfig) error {
 		// Regenerate the .env file with the new IP
 		if err := c.executeStart(projectConfig); err != nil {
 			utils.Error("Failed to regenerate env file: %v", err)
-			if c.logger != nil {
-				c.logger.Error("Failed to regenerate env file", logger.Field{Key: "error", Value: err.Error()})
-			}
 		} else {
 			utils.Success("Environment file updated successfully!")
 			fmt.Println()
@@ -347,8 +291,8 @@ func (c *StartCmd) watchMode(projectConfig *config.ProjectConfig) error {
 		fmt.Println("Shutting down gracefully...")
 		cancel()
 		watcher.Stop()
-		if c.logger != nil {
-			c.logger.Info("Watch mode stopped by user")
+		if IsVerbose() {
+			fmt.Fprintf(os.Stderr, "[verbose] Watch mode stopped by user\n")
 		}
 		return nil
 	case err := <-errCh:

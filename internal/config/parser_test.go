@@ -20,7 +20,6 @@ func TestGlobalConfig_Validate(t *testing.T) {
 			config: GlobalConfig{
 				LogPath:       "/tmp/lanup.log",
 				LogLevel:      "info",
-				DefaultPort:   8080,
 				CheckInterval: 5,
 			},
 			wantErr: false,
@@ -30,7 +29,6 @@ func TestGlobalConfig_Validate(t *testing.T) {
 			config: GlobalConfig{
 				LogPath:       "",
 				LogLevel:      "info",
-				DefaultPort:   8080,
 				CheckInterval: 5,
 			},
 			wantErr: true,
@@ -40,37 +38,16 @@ func TestGlobalConfig_Validate(t *testing.T) {
 			config: GlobalConfig{
 				LogPath:       "/tmp/lanup.log",
 				LogLevel:      "invalid",
-				DefaultPort:   8080,
 				CheckInterval: 5,
 			},
 			wantErr: true,
 		},
-		{
-			name: "invalid port - too low",
-			config: GlobalConfig{
-				LogPath:       "/tmp/lanup.log",
-				LogLevel:      "info",
-				DefaultPort:   0,
-				CheckInterval: 5,
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid port - too high",
-			config: GlobalConfig{
-				LogPath:       "/tmp/lanup.log",
-				LogLevel:      "info",
-				DefaultPort:   65536,
-				CheckInterval: 5,
-			},
-			wantErr: true,
-		},
+
 		{
 			name: "invalid check interval",
 			config: GlobalConfig{
 				LogPath:       "/tmp/lanup.log",
 				LogLevel:      "info",
-				DefaultPort:   8080,
 				CheckInterval: 0,
 			},
 			wantErr: true,
@@ -149,7 +126,7 @@ func TestGetDefaultGlobalConfig(t *testing.T) {
 	assert.NotNil(t, config)
 	assert.NotEmpty(t, config.LogPath)
 	assert.Equal(t, "info", config.LogLevel)
-	assert.Equal(t, 8080, config.DefaultPort)
+
 	assert.Equal(t, 5, config.CheckInterval)
 
 	// Validate the default config
@@ -258,7 +235,7 @@ func TestLoadGlobalConfig_FirstRun(t *testing.T) {
 
 	// Verify config has default values
 	assert.Equal(t, "info", config.LogLevel)
-	assert.Equal(t, 8080, config.DefaultPort)
+
 	assert.Equal(t, 5, config.CheckInterval)
 	assert.Contains(t, config.LogPath, ".lanup/logs/lanup.log")
 
@@ -285,7 +262,6 @@ func TestLoadGlobalConfig_ExistingConfig(t *testing.T) {
 	configPath := filepath.Join(lanupDir, "config.yaml")
 	customConfig := `log_path: /custom/path/lanup.log
 log_level: debug
-default_port: 9000
 check_interval: 10
 `
 	err = os.WriteFile(configPath, []byte(customConfig), 0600)
@@ -299,7 +275,7 @@ check_interval: 10
 	// Verify it loaded the custom values
 	assert.Equal(t, "/custom/path/lanup.log", config.LogPath)
 	assert.Equal(t, "debug", config.LogLevel)
-	assert.Equal(t, 9000, config.DefaultPort)
+
 	assert.Equal(t, 10, config.CheckInterval)
 }
 
@@ -338,7 +314,6 @@ func TestLoadGlobalConfig_InvalidYAML(t *testing.T) {
 	// Write invalid YAML (invalid structure with unclosed quotes)
 	invalidYAML := `log_path: "/tmp/lanup.log
 log_level: "info
-default_port: 8080
 `
 	err = os.WriteFile(configPath, []byte(invalidYAML), 0600)
 	require.NoError(t, err)
@@ -382,7 +357,6 @@ func TestGlobalConfig_Validate_TildeExpansion(t *testing.T) {
 	config := &GlobalConfig{
 		LogPath:       "~/.lanup/logs/lanup.log",
 		LogLevel:      "info",
-		DefaultPort:   8080,
 		CheckInterval: 5,
 	}
 
