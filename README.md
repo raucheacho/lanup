@@ -7,10 +7,11 @@ Perfect for testing mobile apps, sharing work with teammates, or accessing your 
 ## Features
 
 - 🌐 **Automatic IP Detection** - Detects your local network IP address
-- 🔄 **Watch Mode** - Automatically updates when your network changes
+- 🔄 **Watch Mode** - Automatically updates when your network changes (default behavior)
 - 🐳 **Docker Integration** - Auto-detects running Docker containers
 - 🗄️ **Supabase Support** - Detects Supabase local development services
-- 📝 **Environment File Management** - Safely updates .env files with backups
+- 📝 **Environment File Management** - Safely updates `.env` and `.envrc` files with backups
+- 📱 **QR Code Generation** - Instantly share URLs to mobile devices via terminal QR codes
 - 🎨 **Colorized Output** - Beautiful, easy-to-read console output
 - 🔍 **Diagnostics** - Built-in health checks for troubleshooting
 - 🔒 **Secure by Default** - Only uses private IP addresses (RFC 1918)
@@ -96,7 +97,6 @@ lanup init [flags]
 
 **Flags:**
 
-- `--format string` - Configuration file format (yaml or toml) (default "yaml")
 - `--force` - Overwrite existing configuration file
 
 **Examples:**
@@ -121,19 +121,18 @@ lanup start [flags]
 
 **Flags:**
 
-- `-w, --watch` - Watch for network changes and update automatically
+- `-1, --once` - Run once and exit without watching for network changes
 - `--no-env` - Display variables without writing to file
 - `--dry-run` - Simulate all operations without writing files
-- `--log` - Enable logging to file (default true)
 
 **Examples:**
 
 ```bash
-# Basic usage
+# Start watching for network changes (default behavior)
 lanup start
 
-# Watch mode - auto-update on network changes
-lanup start --watch
+# Update once and exit
+lanup start --once
 
 # Preview without modifying files
 lanup start --dry-run
@@ -154,9 +153,8 @@ lanup expose [URL] [flags]
 
 **Flags:**
 
-- `--name string` - Assign an alias to the exposed service
 - `--port int` - Use a custom port instead of the original
-- `--https` - Use HTTPS protocol instead of HTTP
+- `--qr` - Display a QR code for the exposed URL
 
 **Examples:**
 
@@ -164,8 +162,8 @@ lanup expose [URL] [flags]
 # Expose a single service
 lanup expose http://localhost:3000
 
-# Expose with a custom name
-lanup expose http://localhost:8080 --name api
+# Expose and display a QR code
+lanup expose http://localhost:3000 --qr
 
 # Expose with a different port
 lanup expose http://localhost:5000 --port 8000
@@ -174,39 +172,6 @@ lanup expose http://localhost:5000 --port 8000
 lanup expose http://localhost:3000 --https
 ```
 
----
-
-#### `lanup logs`
-
-View or manage lanup logs.
-
-```bash
-lanup logs [flags]
-```
-
-**Flags:**
-
-- `-n, --tail int` - Show last N lines (0 = show all)
-- `-f, --follow` - Follow log output in real-time
-- `--clear` - Clear the log file (requires confirmation)
-
-**Examples:**
-
-```bash
-# View all logs
-lanup logs
-
-# View last 50 lines
-lanup logs --tail 50
-
-# Follow logs in real-time
-lanup logs --follow
-
-# Clear log file
-lanup logs --clear
-```
-
----
 
 #### `lanup doctor`
 
@@ -320,8 +285,8 @@ Test your backend API from your phone or tablet:
 # Start your backend
 npm run dev
 
-# Expose it on your network
-lanup start --watch
+# Expose it on your network (watches for changes automatically)
+lanup start
 
 # Access from your mobile device
 # http://192.168.1.100:3000
@@ -364,8 +329,8 @@ lanup start
 Share your local development environment with teammates on the same network:
 
 ```bash
-# Start with watch mode
-lanup start --watch
+# Start lanup (watch mode is the default)
+lanup start
 
 # Share the URLs with your team
 # They can access your services from their devices
@@ -467,13 +432,11 @@ lanup/
 │   ├── init.go            # Init command
 │   ├── start.go           # Start command
 │   ├── expose.go          # Expose command
-│   ├── logs.go            # Logs command
 │   └── doctor.go          # Doctor command
 ├── internal/              # Internal packages
 │   ├── config/            # Configuration management
 │   ├── net/               # Network detection
 │   ├── env/               # Environment file management
-│   ├── logger/            # Logging system
 │   └── docker/            # Docker integration
 ├── pkg/                   # Public packages
 │   ├── errors/            # Error handling
@@ -554,15 +517,7 @@ Created and maintained by **Rauche Acho** - [GitHub](https://github.com/raucheac
 
 ## Documentation
 
-Full documentation is available at: **[https://raucheacho.github.io/lanup/](https://raucheacho.github.io/lanup/)**
-
-Or build locally:
-
-```bash
-cd docs
-./setup.sh
-hugo server
-```
+All documentation is contained within this README. Check out the commands and use cases above!
 
 ## Support
 

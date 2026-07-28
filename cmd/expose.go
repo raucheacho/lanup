@@ -3,9 +3,11 @@ package cmd
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/mdp/qrterminal/v3"
 	"github.com/raucheacho/lanup/internal/net"
 	lanuperrors "github.com/raucheacho/lanup/pkg/errors"
 	"github.com/spf13/cobra"
@@ -13,9 +15,9 @@ import (
 
 // ExposeCmd represents the expose command
 type ExposeCmd struct {
-	URL   string
-	Port  int
-	HTTPS bool
+	URL  string
+	Port int
+	QR   bool
 }
 
 // NewExposeCmd creates a new expose command
@@ -32,8 +34,7 @@ from any device on your network.
 
 Examples:
   lanup expose http://localhost:3000
-  lanup expose http://localhost:5000 --port 8000
-  lanup expose http://localhost:3000 --https`,
+  lanup expose http://localhost:5000 --port 8000`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			exposeCmd.URL = args[0]
@@ -43,7 +44,7 @@ Examples:
 
 	// Add flags
 	cmd.Flags().IntVar(&exposeCmd.Port, "port", 0, "use a custom port instead of the original")
-	cmd.Flags().BoolVar(&exposeCmd.HTTPS, "https", false, "use HTTPS protocol instead of HTTP")
+	cmd.Flags().BoolVar(&exposeCmd.QR, "qr", false, "display a QR code for the exposed URL")
 
 	return cmd
 }
@@ -131,11 +132,6 @@ func (c *ExposeCmd) transformURL(localIP string) (string, error) {
 		parsedURL.Host = fmt.Sprintf("%s:%d", localIP, c.Port)
 	}
 
-	// Apply HTTPS if specified
-	if c.HTTPS {
-		parsedURL.Scheme = "https"
-	}
-
 	return parsedURL.String(), nil
 }
 
@@ -153,6 +149,12 @@ func (c *ExposeCmd) displayResult(localIP, transformedURL string) {
 
 	fmt.Printf("%s %s\n", yellow("🌐"), "Network URL:")
 	fmt.Printf("  %s\n\n", cyan(transformedURL))
+
+	if c.QR {
+		fmt.Printf("%s\n", yellow("📱 Scan to open:"))
+		qrterminal.GenerateHalfBlock(transformedURL, qrterminal.L, os.Stdout)
+		fmt.Println()
+	}
 
 	fmt.Println("💡 Tip: Use 'lanup init' to configure multiple services in your project")
 }
