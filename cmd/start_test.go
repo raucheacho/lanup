@@ -395,3 +395,13 @@ func TestTransformURL(t *testing.T) {
 		})
 	}
 }
+
+func TestTransformValue(t *testing.T) {
+	ip := "192.168.11.101"
+	// {{ip}} present: only it changes, localhost stays.
+	assert.Equal(t, "http://localhost:3000,http://192.168.11.101:3000",
+		TransformValue("http://localhost:3000,http://{{ip}}:3000", ip))
+	// No placeholder: localhost becomes the IP, as before.
+	assert.Equal(t, "ws://192.168.11.101:4000/socket", TransformValue("ws://localhost:4000/socket", ip))
+	assert.Equal(t, "plain", TransformValue("plain", ip))
+}

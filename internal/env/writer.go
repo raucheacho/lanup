@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -232,5 +233,143 @@ func (w *EnvWriter) Write(vars []EnvVar) error {
 		return fmt.Errorf("failed to flush writer: %w", err)
 	}
 
+	return nil
+}
+
+// assignment is a parsed KEY=VALUE line, with how it was written
+type assignment struct {
+	key    string
+	export bool
+	quote  string // "", `"` or `'`
+}
+
+// parseAssignment reads a KEY=VALUE or export KEY=VALUE line; comments and
+// shell commands are not assignments
+func parseAssignment(line string) (assignment, bool) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return assignment{}, false
+	}
+	a := assignment{}
+	if strings.HasPrefix(trimmed, "export ") {
+		a.export = true
+		trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "export "))
+	}
+	parts := strings.SplitN(trimmed, "=", 2)
+	if len(parts) != 2 || !isIdentifier(parts[0]) {
+		return assignment{}, false
+	}
+	a.key = parts[0]
+	if v := parts[1]; strings.HasPrefix(v, `"`) || strings.HasPrefix(v, `'`) {
+		a.quote = v[:1]
+	}
+	return a, true
+}
+
+func isIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		letter := r == '_' || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
+		if !letter && (i == 0 || r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// shellUnsafe lists the characters that need quoting in a shell assignment
+const shellUnsafe = " \t\"'`$\\<>|&;()*?[]#~{}!"
+
+// formatAssignment writes a variable the way its line was written before
+// (export prefix, quotes); a shell file quotes values that need it
+func formatAssignment(a assignment, value string, shell bool) string {
+	quote := a.quote
+	if quote == "" && shell && strings.ContainsAny(value, shellUnsafe) {
+		quote = `"`
+	}
+	if quote == `'` && strings.Contains(value, "'") {
+		quote = `"`
+	}
+	if quote == `"` {
+		value = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`").Replace(value)
+	}
+	prefix := ""
+	if a.export || shell {
+		prefix = "export "
+	}
+	return prefix + a.key + "=" + quote + value + quote
+}
+
+// Update writes the managed variables in place: their lines are rewritten,
+// keeping their export prefix and quotes, and every other line (comments,
+// unmanaged variables, shell commands) stays as it is. Variables not yet in the
+// file are appended under a lanup:managed marker. No line is ever removed: a
+// variable no longer in the config keeps its last value.
+func (w *EnvWriter) Update(vars []EnvVar) error {
+	data, err := os.ReadFile(w.FilePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read file %s: %w", w.FilePath, err)
+	}
+	mode := os.FileMode(0644)
+	if info, statErr := os.Stat(w.FilePath); statErr == nil {
+		mode = info.Mode().Perm()
+	}
+
+	want := make(map[string]string, len(vars))
+	for _, v := range vars {
+		want[v.Key] = v.Value
+	}
+	shell := w.isEnvRC()
+
+	var lines []string
+	if content := strings.TrimRight(string(data), "\n"); content != "" {
+		lines = strings.Split(content, "\n")
+	}
+
+	written := make(map[string]bool, len(vars))
+	out := make([]string, 0, len(lines)+2*len(vars))
+	for _, line := range lines {
+		a, ok := parseAssignment(line)
+		if ok {
+			if value, managed := want[a.key]; managed {
+				out = append(out, formatAssignment(a, value, shell))
+				written[a.key] = true
+				continue
+			}
+		}
+		out = append(out, line)
+	}
+
+	var missing []string
+	for key := range want {
+		if !written[key] {
+			missing = append(missing, key)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 && len(out) > 0 && strings.TrimSpace(out[len(out)-1]) != "" {
+		out = append(out, "")
+	}
+	for _, key := range missing {
+		out = append(out, "# lanup:managed", formatAssignment(assignment{key: key}, want[key], shell))
+	}
+
+	content := strings.Join(out, "\n") + "\n"
+	if content == string(data) {
+		return nil
+	}
+	if w.BackupEnabled {
+		if err := w.Backup(); err != nil {
+			return fmt.Errorf("failed to create backup: %w", err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(w.FilePath), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+	if err := os.WriteFile(w.FilePath, []byte(content), mode); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", w.FilePath, err)
+	}
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -93,11 +94,8 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 		fmt.Fprintf(os.Stderr, "[verbose] Detected IP: %s on %s (%s)\n", netInfo.IP, netInfo.Interface, netInfo.Type)
 	}
 
-	// Collect variables from configuration
-	vars := make(map[string]string)
-	for key, value := range projectConfig.Vars {
-		vars[key] = value
-	}
+	// Auto-detected services go to every output
+	detected := make(map[string]string)
 
 	// Handle Docker auto-detection if enabled
 	if projectConfig.AutoDetect.Docker {
@@ -113,7 +111,7 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 				for _, container := range containers {
 					for _, port := range container.Ports {
 						varName := fmt.Sprintf("DOCKER_%s_PORT", strings.ToUpper(strings.ReplaceAll(container.Name, "-", "_")))
-						vars[varName] = fmt.Sprintf("http://localhost:%d", port.HostPort)
+						detected[varName] = fmt.Sprintf("http://localhost:%d", port.HostPort)
 					}
 				}
 			}
@@ -134,53 +132,105 @@ func (c *StartCmd) executeStart(projectConfig *config.ProjectConfig) error {
 			// Add Supabase service ports to variables
 			for serviceName, port := range services {
 				varName := fmt.Sprintf("SUPABASE_%s_PORT", strings.ToUpper(strings.ReplaceAll(serviceName, "_", "_")))
-				vars[varName] = fmt.Sprintf("http://localhost:%d", port)
+				detected[varName] = fmt.Sprintf("http://localhost:%d", port)
 			}
 		}
 	}
 
-	// Transform URLs from localhost to detected IP
-	transformedVars := make([]env.EnvVar, 0, len(vars))
-	for key, value := range vars {
-		transformedValue := TransformURL(value, netInfo.IP)
-		transformedVars = append(transformedVars, env.EnvVar{
-			Key:     key,
-			Value:   transformedValue,
-			Managed: true,
-		})
+	targets := projectConfig.Targets()
+	if c.NoEnv || c.DryRun {
+		if c.DryRun {
+			utils.Info("Dry run mode - no files will be modified")
+			fmt.Println()
+		}
+		utils.Success("Detected local IP: %s", netInfo.IP)
 	}
 
-	// If no-env or dry-run, just display the variables
+	var written []writtenTarget
+	for _, target := range targets {
+		vars := make(map[string]string, len(target.Vars)+len(detected))
+		for key, value := range detected {
+			vars[key] = value
+		}
+		for key, value := range target.Vars {
+			vars[key] = value
+		}
+
+		// Transform URLs from localhost to detected IP, sorted for a stable file
+		keys := make([]string, 0, len(vars))
+		for key := range vars {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		transformedVars := make([]env.EnvVar, 0, len(vars))
+		for _, key := range keys {
+			transformedVars = append(transformedVars, env.EnvVar{
+				Key:     key,
+				Value:   TransformValue(vars[key], netInfo.IP),
+				Managed: true,
+			})
+		}
+
+		// If no-env or dry-run, just display the variables
+		if c.NoEnv || c.DryRun {
+			c.displayVariables(transformedVars, target.Path)
+			continue
+		}
+
+		envWriter := env.NewEnvWriter(target.Path)
+		if target.InPlace {
+			if err := envWriter.Update(transformedVars); err != nil {
+				return lanuperrors.NewError(lanuperrors.ErrPermissionDenied,
+					"Failed to update env file "+target.Path, err)
+			}
+		} else {
+			// Read existing .env file
+			existingVars, err := envWriter.Read()
+			if err != nil {
+				return lanuperrors.NewError(lanuperrors.ErrFileNotFound,
+					"Failed to read existing env file", err)
+			}
+
+			// Merge new and existing variables, then write the new .env file
+			mergedVars := envWriter.Merge(transformedVars, existingVars)
+			if err := envWriter.Write(mergedVars); err != nil {
+				return lanuperrors.NewError(lanuperrors.ErrPermissionDenied,
+					"Failed to write env file", err)
+			}
+		}
+
+		if IsVerbose() {
+			fmt.Fprintf(os.Stderr, "[verbose] Updated %s with %d variable(s)\n", target.Path, len(transformedVars))
+		}
+		written = append(written, writtenTarget{path: target.Path, vars: transformedVars})
+	}
+
 	if c.NoEnv || c.DryRun {
-		c.displayVariables(transformedVars, netInfo.IP, c.DryRun)
 		return nil
 	}
 
-	// Read existing .env file
-	envWriter := env.NewEnvWriter(projectConfig.Output)
-	existingVars, err := envWriter.Read()
-	if err != nil {
-		return lanuperrors.NewError(lanuperrors.ErrFileNotFound,
-			"Failed to read existing env file", err)
-	}
-
-	// Merge new and existing variables
-	mergedVars := envWriter.Merge(transformedVars, existingVars)
-
-	// Write the new .env file
-	if err := envWriter.Write(mergedVars); err != nil {
-		return lanuperrors.NewError(lanuperrors.ErrPermissionDenied,
-			"Failed to write env file", err)
-	}
-
-	if IsVerbose() {
-		fmt.Fprintf(os.Stderr, "[verbose] Updated %s with %d variable(s)\n", projectConfig.Output, len(transformedVars))
-	}
-
 	// Display success message and URLs
-	c.displaySuccess(transformedVars, netInfo.IP, projectConfig.Output)
+	c.displaySuccess(written, netInfo.IP)
 
 	return nil
+}
+
+// writtenTarget is an env file lanup just wrote, for the summary
+type writtenTarget struct {
+	path string
+	vars []env.EnvVar
+}
+
+// ipPlaceholder marks where the detected IP goes in a value
+const ipPlaceholder = "{{ip}}"
+
+// TransformValue puts the detected IP in a value: in place of {{ip}} when the
+// value has it (so localhost can stay next to the IP), else in place of localhost
+func TransformValue(value string, ip string) string {
+	if strings.Contains(value, ipPlaceholder) {
+		return strings.ReplaceAll(value, ipPlaceholder, ip)
+	}
+	return TransformURL(value, ip)
 }
 
 // TransformURL replaces localhost or 127.0.0.1 with the detected IP address
@@ -194,38 +244,38 @@ func TransformURL(url string, newIP string) string {
 	return url
 }
 
-// displayVariables shows the environment variables in the console
-func (c *StartCmd) displayVariables(vars []env.EnvVar, ip string, isDryRun bool) {
-	if isDryRun {
-		utils.Info("Dry run mode - no files will be modified")
-		fmt.Println()
-	}
-
-	utils.Success("Detected local IP: %s", ip)
+// displayVariables shows the environment variables of one output in the console
+func (c *StartCmd) displayVariables(vars []env.EnvVar, path string) {
 	fmt.Println()
-
-	if len(vars) > 0 {
-		utils.PrintSection("Environment Variables")
-		for _, v := range vars {
-			fmt.Printf("  %s=%s\n", color.CyanString(v.Key), v.Value)
-		}
+	utils.PrintSection(path)
+	for _, v := range vars {
+		fmt.Printf("  %s=%s\n", color.CyanString(v.Key), v.Value)
 	}
 }
 
-// displaySuccess shows a success message with the exposed URLs
-func (c *StartCmd) displaySuccess(vars []env.EnvVar, ip string, outputPath string) {
+// displaySuccess shows a success message with the exposed URLs of each file
+func (c *StartCmd) displaySuccess(targets []writtenTarget, ip string) {
 	utils.Success("Successfully exposed services on your LAN!")
-	utils.Success("Environment file updated: %s", outputPath)
+	for _, t := range targets {
+		utils.Success("Environment file updated: %s", t.path)
+	}
 	utils.Success("Local IP: %s", ip)
 	fmt.Println()
 
-	if len(vars) > 0 {
-		utils.PrintSection("Your services are now accessible at")
-		for _, v := range vars {
-			// Only display URLs (values that start with http)
-			if strings.HasPrefix(v.Value, "http") {
-				utils.PrintURL(v.Key, v.Value)
+	for _, t := range targets {
+		var urls []env.EnvVar
+		for _, v := range t.vars {
+			// Only display URLs
+			if strings.Contains(v.Value, "://") {
+				urls = append(urls, v)
 			}
+		}
+		if len(urls) == 0 {
+			continue
+		}
+		utils.PrintSection(t.path)
+		for _, v := range urls {
+			utils.PrintURL(v.Key, v.Value)
 		}
 		fmt.Println()
 	}

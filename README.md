@@ -233,6 +233,26 @@ auto_detect:
   supabase: true # Auto-detect Supabase services
 ```
 
+### Several Files (monorepos)
+
+One `.lanup.yaml` at the root can update every env file of a monorepo with `outputs`. Paths are relative to the directory lanup runs in; top-level `vars` go to every output, and an output's own `vars` win.
+
+```yaml
+outputs:
+  - path: backend/.envrc
+    vars:
+      # {{ip}} is replaced by the detected IP; localhost is then left as is
+      ALLOWED_ORIGINS: "http://localhost:3000,http://{{ip}}:3000"
+      WS_URL: "ws://localhost:4000/socket"
+  - path: apps/mobile/.env.local
+    vars:
+      API_URL: "http://localhost:8084"
+```
+
+Each output is **updated in place**: only the lines of its variables are rewritten (keeping their `export` prefix and quotes); comments, other variables and shell commands stay untouched. A variable not yet in the file is appended under a `# lanup:managed` marker, and no line is ever removed. A `.envrc` output is written with `export` and quotes values that need it.
+
+The single `output` keeps its behavior: the file is regenerated with a header. Both can be used together.
+
 ### Global Configuration (`~/.lanup/config.yaml`)
 
 Created automatically on first run.
